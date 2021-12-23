@@ -53,8 +53,83 @@ main(args):
                         pos.append(position_embedding(x).to(x.tensors.dtype))
                         
                     return out, pos
-
+                    
+            # Deformable-DETR/models/deformable_transformer.py
             transformer = build_deforamble_transformer(args)
+                d_model=256, 
+                dim_feedforward=1024, 
+                dropout=0.1,
+                activation="relu", 
+                num_feature_levels=4, 
+                nhead=8,
+                enc_n_points=4,
+                dec_n_points=4,  
+                num_encoder_layers=6, 
+                
+                num_decoder_layers=6, 
+                return_intermediate_dec=False,
+                two_stage=False, 
+                two_stage_num_proposals=300
+                
+                encoder_layer = DeformableTransformerEncoderLayer(d_model, dim_feedforward, dropout, activation, num_feature_levels, nhead, enc_n_points)
+                    d_model=256, 
+                    d_ffn=1024,
+                    dropout=0.1, 
+                    activation="relu",
+                    n_levels=4, 
+                    n_heads=8, 
+                    n_points=4
+                    
+                    self.reference_points = nn.Linear(d_model, 2) # d_model=256
+                    
+                    # self_attention
+                    # Deformable-DETR/models/ops/modules/ms_deform_attn.py
+                    src2 = self.MSDeformAttn(self.with_pos_embed(src, pos), reference_points, src, spatial_shapes, level_start_index, padding_mask)
+                                            
+                        N, Len_q, _ = query.shape
+                        N, Len_in, _ = input_flatten.shape
+                        
+                        # value
+                        value = self.value_proj_Linear(input_flatten)
+                        
+                        # sampling_offsets
+                        sampling_offsets = self.sampling_offsets_Linear(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)
+                        
+                        # attention_weights
+                        attention_weights = self.attention_weights_Linear(query).view(N, Len_q, self.n_heads, self.n_levels * self.n_points)
+                        attention_weights = F.softmax(attention_weights, -1).view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
+                        
+                        sampling_locations = reference_points[:, :, None, :, None, :2] + sampling_offsets / self.n_points * reference_points[:, :, None, :, None, 2:] * 0.5
+                        
+                        # Deformable-DETR/models/ops/functions/ms_deform_attn_func.py
+                        output = MSDeformAttnFunction.apply(value, input_spatial_shapes, input_level_start_index, sampling_locations, attention_weights, self.im2col_step)
+                  
+                        output = self.output_proj_Linear(output)
+                        
+                    src = src + self.dropout1(src2)
+                    src = self.norm1(src)
+                    
+                    # ffn
+                    src2 = self.linear2(self.dropout2(self.activation(self.linear1(src))))
+                    src = src + self.dropout3(src2)
+                    src = self.norm2(src)
+                
+                # Deformable-DETR/models/deformable_transformer.py
+                self.encoder = DeformableTransformerEncoder(encoder_layer, num_encoder_layers)
+                    output = src
+                    reference_points = self.get_reference_points(spatial_shapes, valid_ratios, device=src.device)
+                    
+                    for _, layer in enumerate(self.layers): # num_encoder_layers=6
+                        output = encoder_layer(output, pos, reference_points, spatial_shapes, level_start_index, padding_mask)
+
+                    return output
+                    
+                    
+                
+                decoder_layer = DeformableTransformerDecoderLayer(d_model, dim_feedforward, dropout, activation, num_feature_levels, nhead, dec_n_points)
+                self.decoder = DeformableTransformerDecoder(decoder_layer, num_decoder_layers, return_intermediate_dec)
+                
+                self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
             
             
             
