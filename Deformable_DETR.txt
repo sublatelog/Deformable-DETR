@@ -80,7 +80,7 @@ main(args):
                     n_heads=8, 
                     n_points=4
                     
-                    self.reference_points = nn.Linear(d_model, 2) # d_model=256
+                    self.reference_points = nn.Linear(d_model, 2) # (256, 2)
                     
                     # self_attention
                     # Deformable-DETR/models/ops/modules/ms_deform_attn.py
@@ -92,11 +92,12 @@ main(args):
                         # value
                         value = self.value_proj_Linear(input_flatten)
                         
-                        # sampling_offsets
+                        # sampling_offsets　(query.shape[0], query.shape[1], 8, 4, 4, 2)
                         sampling_offsets = self.sampling_offsets_Linear(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)
                         
-                        # attention_weights
+                        # attention_weights　(query.shape[0], query.shape[1], 8, 4*4)
                         attention_weights = self.attention_weights_Linear(query).view(N, Len_q, self.n_heads, self.n_levels * self.n_points)
+                        # 　(query.shape[0], query.shape[1], 8, 4, 4)
                         attention_weights = F.softmax(attention_weights, -1).view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
                         
                         sampling_locations = reference_points[:, :, None, :, None, :2] + sampling_offsets / self.n_points * reference_points[:, :, None, :, None, 2:] * 0.5
@@ -125,8 +126,10 @@ main(args):
                     return output
                     
                     
-                
+                # Deformable-DETR/models/deformable_transformer.py (256, 1024, 0.1, 'relu', 4, 8, 4)
                 decoder_layer = DeformableTransformerDecoderLayer(d_model, dim_feedforward, dropout, activation, num_feature_levels, nhead, dec_n_points)
+                
+                
                 self.decoder = DeformableTransformerDecoder(decoder_layer, num_decoder_layers, return_intermediate_dec)
                 
                 self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
